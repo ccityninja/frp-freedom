@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FRP Repair Studio</title>
+<style>
+  :root {
+    --bg:#0b0e14; --card:#12161f; --line:#232a38; --txt:#dbe2ef; --dim:#7c8798;
+    --cyan:#3fd2c7; --green:#59d499; --red:#ef6b6b; --amber:#f5b95d;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:22px; }
+  h1 { font-size:22px; letter-spacing:.02em; }
+  h1 span { color:var(--cyan); }
+  .sub { color:var(--dim); font-size:13px; margin:2px 0 18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.12em; color:var(--dim); margin-bottom:10px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:600; }
+  .pill.on  { background:rgba(89,212,153,.15); color:var(--green); }
+  .pill.off { background:rgba(239,107,107,.15); color:var(--red); }
+  .pill.un  { background:rgba(245,185,93,.15); color:var(--amber); }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th { text-align:left; color:var(--dim); font-weight:500; padding:4px 8px 8px 0; border-bottom:1px solid var(--line); }
+  td { padding:7px 8px 7px 0; border-bottom:1px solid rgba(35,42,56,.55); vertical-align:top; }
+  code, .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; color:var(--cyan); }
+  button { background:var(--cyan); color:#06231f; border:0; border-radius:7px; padding:8px 14px;
+           font-weight:700; cursor:pointer; font-size:13.5px; }
+  button.ghost { background:transparent; color:var(--txt); border:1px solid var(--line); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  input { background:#0d1119; border:1px solid var(--line); color:var(--txt); border-radius:7px; padding:8px 10px; font-size:13.5px; width:110px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .dev { border-left:3px solid var(--cyan); padding-left:12px; margin-bottom:14px; }
+  .dev .meta { color:var(--dim); font-size:12.5px; margin:3px 0 8px; }
+  .steps li { margin:6px 0 6px 18px; font-size:14px; }
+  pre { background:#0a0d13; border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+        font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; white-space:pre-wrap; color:var(--amber); max-height:240px; overflow:auto; }
+  .note { font-size:12.5px; color:var(--dim); margin-top:8px; }
+  .ok  { color:var(--green); } .err { color:var(--red); }
+  #status { color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<h1>FRP <span>Repair Studio</span></h1>
+<div class="sub">Authorized device recovery · plug in a phone and follow the steps · everything runs locally</div>
+<div id="status">…</div>
+<div class="grid">
+  <div class="card">
+    <h2>Phone — live detect <button class="ghost" style="padding:3px 10px" onclick="refresh()">rescan</button></h2>
+    <div id="devices"></div>
+    <div class="row"><button id="usb-check" class="ghost" onclick="checkUsb()">Check USB connection</button></div>
+    <div id="usb-report" class="note" role="status">Run a read-only check to distinguish USB visibility from ADB authorization.</div>
+  </div>
+  <div class="card">
+    <h2>Guided steps</h2>
+    <div id="guide"><p class="note">A detected phone shows its mode-entry steps here. Pick a lane manually if none is detected:</p>
+      <div class="row">
+        <button class="ghost" onclick="guide('adb')">ADB</button>
+        <button class="ghost" onclick="guide('edl')">Qualcomm EDL</button>
+        <button class="ghost" onclick="guide('brom')">MTK BROM</button>
+        <button class="ghost" onclick="guide('download')">Samsung Download</button>
+        <button class="ghost" onclick="guide('fastboot')">Fastboot</button>
+      </div>
+      <ol class="steps" id="steps"></ol>
+    </div>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px">
+  <div class="card">
+    <h2>Ranked methods (compatibility unverified)</h2>
+    <div id="methods"><p class="note">Detect a phone to rank its lanes.</p></div>
+  </div>
+  <div class="card">
+    <h2>Run a method</h2>
+    <div class="row">
+      <select id="run-tool" class="mono"></select>
+      <select id="run-func" class="mono"></select>
+      <label style="font-size:13px"><input type="checkbox" id="run-dry" checked> dry-run</label>
+      <input id="confirm" placeholder="type ERASE" autocomplete="off">
+      <button onclick="run()">Run</button>
+    </div>
+    <div class="note">Dry-run plans the call only. Real runs of anything that changes the phone require typing ERASE.</div>
+    <pre id="run-out" style="display:none"></pre>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px">
+  <div class="card">
+    <h2>Tools — installed vs downloaded</h2>
+    <table id="tools"></table>
+    <h2 style="margin-top:14px">Downloaded sources</h2>
+    <table id="manifest"></table>
+  </div>
+  <div class="card">
+    <h2>Session log</h2>
+    <div id="logs"><p class="note">Executed actions appear here.</p></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let DEVS = [];
+
+async function jget(url) { return (await fetch(url)).json(); }
+async function jpost(url, body) {
+  return (await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})).json();
+}
+
+async function checkUsb() {
+  const button = $('usb-check');
+  const report = $('usb-report');
+  button.disabled = true;
+  report.textContent = 'Checking host USB and ADB…';
+  try {
+    const response = await fetch('/api/usb-diagnostics', {cache: 'no-store'});
+    if (!response.ok) throw new Error('USB check failed');
+    const {usb, adb} = await response.json();
+    const errors = {missing: 'tool not installed', timeout: 'check timed out', error: 'check failed'};
+    const usbText = usb.status === 'ok'
+      ? `Linux sees ${usb.non_root_hub_count} USB device(s) excluding root hubs. This includes built-in peripherals.`
+      : `Linux USB: ${errors[usb.status]}.`;
+    const labels = {authorized: 'authorized', unauthorized: 'waiting for approval', offline: 'offline', permission_denied: 'USB permission denied', other: 'other state'};
+    const counts = Object.entries(adb.states).map(([state, count]) => `${count} ${labels[state]}`);
+    const adbText = adb.status === 'ok'
+      ? (counts.length ? `ADB: ${counts.join(', ')}.` : 'ADB sees no devices.')
+      : `ADB: ${errors[adb.status]}.`;
+    const tips = [];
+    if (usb.status === 'ok' && adb.status === 'ok' && !counts.length) {
+      tips.push('Unplug the phone and run the check, then reconnect with a known data cable and check again. A USB count change is a clue, not proof of phone detection.');
+    }
+    if (adb.states.unauthorized) tips.push('If you can access the phone normally, unlock its screen and approve the USB debugging prompt for this computer.');
+    if (adb.states.offline) tips.push('Reconnect the phone directly to another USB port and check again.');
+    if (adb.states.permission_denied) tips.push('Check your Linux distribution’s Android USB (udev) permissions.');
+    report.textContent = [usbText, adbText, ...tips].join(' ');
+  } catch {
+    report.textContent = 'Could not get a USB report. Check that the local dashboard server is running, then retry.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function refresh() {
+  $('status').textContent = 'scanning…';
+  const d = await jget('/api/detect');
+  DEVS = d.devices || [];
+  $('status').textContent = DEVS.length ? DEVS.length + ' device(s) connected' : 'no device detected — plug in, or use the manual lanes';
+  const box = $('devices'); box.innerHTML = '';
+  if (!DEVS.length) { box.innerHTML = '<p class="note">Nothing in ADB / fastboot / EDL / BROM / Download mode.</p>'; }
+  DEVS.forEach((dev, i) => {
+    const div = document.createElement('div'); div.className = 'dev';
+    div.innerHTML = `<div><b>${dev.brand || '?'} ${dev.model || ''}</b> <span class="pill ${dev.chipset === 'unknown' ? 'un' : 'on'}">${dev.chipset || '?'}</span></div>
+      <div class="meta">mode <span class="mono">${dev.connection_type}</span> · serial <span class="mono">${dev.serial}</span> · USB <span class="mono">${dev.usb_vid || '?'}:${dev.usb_pid || '?'}</span></div>
+      <div class="meta">${dev.lane_hint || ''}</div>
+      <div class="row">
+        <button class="ghost" onclick="guide('${dev.connection_type}')">Show entry steps</button>
+        <button onclick="rank(${i})">Rank methods</button>
+      </div>`;
+    box.appendChild(div);
+  });
+  loadTools();
+}
+
+async function guide(mode) {
+  const modes = {adb:0, edl:1, brom:2, download:3, fastboot:4};
+  const g = {
+    adb: ['On the phone: Settings → About → tap Build 7× → Developer options.','Enable USB debugging (and OEM unlocking if shown).','Plug in USB, accept the fingerprint prompt.','FRP-locked setup wizard blocks installs on modern firmware — prefer a BootROM/EDL/Download lane.'],
+    edl: ['Qualcomm EDL (9008): power off.','Xiaomi: hold Vol+ and Vol– while plugging USB. OnePlus/Oppo: Vol+ + Vol–.','Else: testpoint short on the board while plugging USB.','Verify: lsusb shows 05c6:9008.'],
+    brom: ['MediaTek BROM: power fully off.','Hold the BROM key (usually Vol Down, some Vol Up or both) while plugging USB.','Boots instead? Use the board testpoint while plugging in.','Shows as 0e8d:0003. Authenticated loaders may refuse — don\u2019t force.'],
+    download: ['Samsung Download mode: power off.','Hold Vol Down + Vol Up and plug in USB — keep holding to the warning screen.','Press Vol Up to continue.','Shows as 04e8:685d / 04e8:9000.'],
+    fastboot: ['Power off.','Hold Vol Down + Power until fastboot appears (Xiaomi: Vol Down + Power; Samsung: no fastboot).','Plug in USB.'],
+    unknown: ['Check: data-capable cable, another port, no hub.','adb/fastboot installed? See Tools.','Try mode-entry steps for your chipset lanes.'],
+  };
+  const list = g[mode] || g.unknown;
+  const ol = $('steps'); ol.innerHTML = '';
+  list.forEach(s => { const li = document.createElement('li'); li.textContent = s; ol.appendChild(li); });
+  if (!(mode in modes)) ol.scrollIntoView({behavior:'smooth'});
+}
+
+async function rank(i) {
+  const dev = DEVS[i];
+  const r = await jpost('/api/methods', {device: dev});
+  const box = $('methods'); box.innerHTML = '<p class="note">' + (r.note || '') + '</p>';
+  if (!(r.methods || []).length) { box.innerHTML += '<p class="note">No lane matched — identify the chipset first.</p>'; return; }
+  const t = document.createElement('table');
+  t.innerHTML = '<tr><th>prio</th><th>tool</th><th>function</th><th>needs</th><th>compat</th></tr>' +
+    r.methods.map(m => `<tr><td class="mono">${m.priority}</td><td class="mono">${m.tool}</td><td class="mono">${m.function}</td>
+    <td>${(m.requires||[]).join(', ')}</td><td><span class="pill un">${m.compatibility}</span></td></tr>`).join('');
+  box.appendChild(t);
+  const tools = [...new Set(r.methods.map(m => m.tool))];
+  const funcs = [...new Set(r.methods.map(m => m.function))];
+  $('run-tool').innerHTML = tools.map(t2 => `<option>${t2}</option>`).join('');
+  $('run-func').innerHTML = funcs.map(f => `<option>${f}</option>`).join('');
+}
+
+async function run() {
+  const payload = {
+    tool: $('run-tool').value, function: $('run-func').value,
+    dry_run: $('run-dry').checked, confirm: $('confirm').value,
+    device: DEVS[0] || {},
+  };
+  const out = $('run-out'); out.style.display = 'block';
+  out.textContent = '…';
+  const r = await jpost('/api/execute', payload);
+  out.className = '';
+  if (r.ok === false) { out.innerHTML = `<span class="err">✗ ${r.error}</span>`; }
+  else if (r.executed === false) { out.innerHTML = `<span class="ok">✔</span> ${r.message || 'planned'}`; }
+  else { out.innerHTML = `${r.success ? '<span class="ok">✔ executed</span>' : '<span class="err">✗ executed, failed</span>'} (${(r.duration_sec||0).toFixed(1)}s)\n${r.output || ''}\n${r.error || ''}`; }
+  loadLogs();
+}
+
+async function loadTools() {
+  const t = await jget('/api/tools');
+  $('tools').innerHTML = '<tr><th>tool</th><th>state</th><th>install</th></tr>' +
+    (t.tools || []).map(x => `<tr><td>${x.label}</td>
+    <td><span class="pill ${x.state === 'installed' ? 'on' : x.state === 'source' ? 'un' : 'off'}">${x.state}</span></td>
+    <td class="mono" style="color:var(--dim)">${x.install_hint}</td></tr>`).join('');
+  $('manifest').innerHTML = '<tr><th>folder</th><th>status</th></tr>' +
+    (t.manifest || []).map(m => `<tr><td class="mono">${m.folder || m.requested}</td><td style="color:var(--dim)">${m.status}</td></tr>`).join('');
+}
+
+async function loadLogs() {
+  const l = await jget('/api/logs');
+  const box = $('logs'); box.innerHTML = '';
+  if (!(l.logs || []).length) { box.innerHTML = '<p class="note">Nothing executed yet — dry-runs never appear here.</p>'; return; }
+  l.logs.slice().reverse().forEach(e => {
+    const p = document.createElement('div'); p.className = 'note';
+    p.innerHTML = `<span class="mono">${new Date(e.timestamp * 1000).toLocaleTimeString()}</span> <span class="mono">${e.tool}.${e.function}</span> ${e.success ? '<span class="ok">ok</span>' : '<span class="err">failed</span>'}`;
+    box.appendChild(p);
+  });
+}
+
+refresh(); loadLogs(); setInterval(refresh, 4000);
+</script>
+</body>
+</html>

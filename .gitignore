@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual env
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Loader collection (too large for git, tracked separately)
+firehose_collection/
+*.elf
+*.mbn
+*.bin
+
+# Android SDK
+android-sdk/
+
+# Backups (device partition dumps)
+backups/
+*.img
+
+# Sensitive
+.env
+.env.local
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/

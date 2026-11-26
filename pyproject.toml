@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frp-bot"
+version = "0.1.0"
+description = "Android FRP Bypass Orchestrator - Authorized Device Recovery Only"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0", "ruff>=0.1.0"]
+
+[project.scripts]
+frp-bot = "frp_bot.__main__:app"
+
+[project.urls]
+Homepage = "https://github.com/your-org/frp-bot"
+Repository = "https://github.com/your-org/frp-bot"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["frp_bot*", "core*", "tools*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "W", "UP", "B", "C4", "PTH", "T20", "SIM", "RET", "ARG", "ERA", "PD", "PL", "TRY", "NPY", "RSE", "LOG", "PT", "S"]
+ignore = ["S101", "S106", "S108"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

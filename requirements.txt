@@ -1,0 +1,15 @@
+# FRP Bot — Python Dependencies
+# Core
+typer>=0.9.0
+rich>=13.0.0
+
+# Tool wrappers (installed separately via pip/git)
+# mtkclient>=2.0.0
+# edl>=2.0.0
+# nphonecli>=1.0.0
+# frp-freedom>=1.0.0
+# spdclient>=1.0.0
+
+# Optional: for development
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0

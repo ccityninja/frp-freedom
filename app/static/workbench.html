@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Repair Studio</title>
+<style>
+  :root{color-scheme:dark;--bg:#10141b;--panel:#181f29;--text:#ecf1f6;--muted:#b0bdcc;--edge:#394653;--accent:#6ee4c9}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:1rem/1.55 system-ui,sans-serif}
+  main{max-width:68rem;margin:auto;padding:clamp(1rem,4vw,3rem)} h1,h2,p{margin:0 0 .6rem} h1{font-size:clamp(1.9rem,5vw,3rem);line-height:1.13} h2{font-size:1.25rem}
+  header{margin-bottom:1.5rem} .eyebrow{color:var(--accent);font-weight:700;letter-spacing:.12em;font-size:.77rem;text-transform:uppercase}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr));gap:1rem;align-items:start}
+  section{background:var(--panel);border:1px solid var(--edge);border-radius:.85rem;padding:clamp(1rem,3vw,1.5rem)}
+  .muted{color:var(--muted)} button,select{font:inherit;padding:.55rem .8rem;border-radius:.45rem} button{color:#081b19;background:var(--accent);font-weight:700;border:1px solid transparent;cursor:pointer}
+  button:disabled{opacity:.55;cursor:not-allowed} label{display:block;margin-top:.85rem;font-weight:650} select{width:100%;max-width:100%;margin:.25rem 0 .4rem;border:1px solid var(--edge);background:var(--bg);color:var(--text)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px} .check{border-top:1px solid var(--edge);margin-top:1rem;padding-top:1rem} .check p{margin:.6rem 0 0}
+  [hidden]{display:none!important}
+  .badge{display:inline-block;border:1px solid var(--edge);border-radius:1rem;padding:.12rem .65rem;font-size:.8rem;font-weight:650;margin-bottom:.7rem}
+  .badge[data-tone="ready"]{color:var(--accent)} .badge[data-tone="attention"]{color:#ffd28a}
+  dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.3rem .7rem;margin:.7rem 0 0} dt{color:var(--muted)} dd{margin:0;font-variant-numeric:tabular-nums}
+  ol{padding-inline-start:1.3rem} li+li{margin-top:.55rem} a{color:var(--accent)} footer{margin-top:1.25rem;font-size:.9rem}
+</style>
+<script src="/workbench.js" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Local repair workbench</p>
+    <h1>Phone Repair Studio</h1>
+    <p class="muted">Read-only Android checks and guided troubleshooting for Android and iPhone.</p>
+  </header>
+  <div class="grid">
+    <section aria-labelledby="connection-title">
+      <h2 id="connection-title">Live connection</h2>
+      <p class="badge" id="connection-badge" role="status">Checking…</p>
+      <p id="connection-hint">Plug in one phone with a data cable. Nothing runs on the phone automatically.</p>
+      <div class="check">
+        <button id="connection">Refresh connection</button>
+        <p id="connection-status" class="muted">USB and Android debugging are checked separately.</p>
+      </div>
+    </section>
+    <section aria-labelledby="actions-title">
+      <h2 id="actions-title">Choose a task</h2>
+      <label for="action">What do you want to do?</label>
+      <select id="action">
+        <optgroup label="Diagnostic">
+          <option value="health">Read Android health</option>
+        </optgroup>
+        <optgroup label="Guides · no device required">
+          <option value="connection" selected>Fix a USB connection</option><option value="power">Diagnose charging or power</option>
+          <option value="boot">Troubleshoot startup</option><option value="storage">Free up storage</option>
+          <option value="screen">Diagnose screen or touch</option><option value="audio">Diagnose sound or mic</option>
+          <option value="backup">Back up before repair</option><option value="account">Official account recovery</option>
+        </optgroup>
+      </select>
+      <div id="health-panel" class="check" hidden>
+        <p id="health-availability" class="muted">Waiting for connection status.</p>
+        <button id="health" aria-describedby="health-availability" disabled>Read Android health</button>
+        <p id="health-status" class="muted" role="status">Battery readings are a snapshot, not a battery wear test.</p>
+        <dl id="metrics" hidden></dl>
+      </div>
+      <div id="guide-panel">
+        <label for="platform">Phone type</label>
+        <select id="platform"><option value="android">Android</option><option value="iphone">iPhone</option></select>
+        <ol id="steps"></ol>
+        <a id="support" target="_blank" rel="noopener noreferrer" href="https://support.google.com/android/">Official Android support</a>
+      </div>
+    </section>
+  </div>
+  <footer class="muted">Diagnostics don’t collect serials or personal files. No flashing, erasing, or account-lock bypass.</footer>
+</main>
+</body>
+</html>
