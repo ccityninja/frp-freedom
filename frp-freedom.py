@@ -32,6 +32,7 @@ from core.detector import DeviceDetector, DeviceInfo, identify_chipset
 from core.loader_db import LoaderDB
 from core.method_selector import BypassMethod, MethodSelector
 from tools.wrappers import get_executor
+from app.tool_inventory import tool_status
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("frp-freedom")
@@ -280,7 +281,6 @@ def cmd_status(args):
     print_header("FRP FREEDOM — SYSTEM STATUS")
 
     # Tool inventory
-    from app.tool_inventory import tool_status
     tools = tool_status()
     print(f"  {C.BOLD}Tool Inventory:{C.R}\n")
     for t in tools:
@@ -365,6 +365,68 @@ def cmd_backup(args):
         print(f"  {C.YELLOW}Backup not implemented for {dev.connection_type} mode.{C.R}")
 
 
+def cmd_samsung(args):
+    """Samsung Download mode operations"""
+    from tools.odin_client import detect_samsung_download, get_pit_and_frp_partitions, OdinClient
+
+    print(f"\n  {C.BOLD}Samsung Download Mode{C.R}\n")
+
+    if not detect_samsung_download():
+        print(f"  {C.RED}No Samsung download mode device found.{C.R}")
+        print(f"  {C.GRAY}Put phone in download mode: power off → hold Vol Down → plug USB cable{C.R}")
+        return 1
+
+    print(f"  {C.GREEN}✓ Download mode device detected (04e8:685d){C.R}\n")
+
+    if args.action == "pit":
+        print(f"  {C.BOLD}Reading PIT file...{C.R} (single session)\n")
+        pit, frp_parts = get_pit_and_frp_partitions()
+        if not pit:
+            print(f"  {C.RED}Failed to read PIT.{C.R}")
+            return 1
+
+        print(f"  CPU: {C.YELLOW}{pit.cpu_tag}{C.R}")
+        print(f"  Partitions: {pit.entry_count}")
+        print(f"  Logic units: {pit.logic_unit_count}\n")
+
+        for e in pit.entries:
+            ro = f" {C.GRAY}(RO){C.R}" if e.is_read_only else ""
+            print(f"    {e.partition_name:20s} {e.size_bytes:>10,} bytes  id={e.identifier:3d}  blocks={e.block_count}{ro}")
+
+        print(f"\n  {C.BOLD}FRP-related partitions:{C.R}")
+        if frp_parts:
+            for p in frp_parts:
+                print(f"    {C.RED}⚠ {p.partition_name}{C.R}: {p.size_bytes:,} bytes")
+        else:
+            print(f"    {C.GRAY}None found in PIT{C.R}")
+
+    elif args.action == "backup":
+        print(f"  {C.BOLD}Backing up FRP partitions...{C.R}\n")
+        pit, frp_parts = get_pit_and_frp_partitions()
+        if not pit or not frp_parts:
+            print(f"  {C.RED}No PIT or FRP partitions found.{C.R}")
+            return 1
+        # TODO: implement backup via odin_client.read_partition
+        print(f"  {C.YELLOW}Backup not yet implemented — use Heimdall for now:{C.R}")
+        for p in frp_parts:
+            print(f"    heimdall dump --part {p.partition_name} --output backups/{p.partition_name}.bin")
+
+    elif args.action == "erase":
+        print(f"  {C.BOLD}Erase FRP partitions...{C.R}\n")
+        pit, frp_parts = get_pit_and_frp_partitions()
+        if not pit or not frp_parts:
+            print(f"  {C.RED}No PIT or FRP partitions found.{C.R}")
+            return 1
+        print(f"  {C.YELLOW}Erase via Odin protocol not yet implemented.{C.R}")
+        print(f"  {C.GRAY}Identified FRP partitions to erase:{C.R}")
+        for p in frp_parts:
+            print(f"    {p.partition_name} ({p.size_bytes:,} bytes)")
+        print(f"\n  {C.GRAY}Use Heimdall on Linux or Odin on Windows to flash zeroed partitions.{C.R}")
+
+    print()
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="frp-freedom",
@@ -399,6 +461,10 @@ def main():
     # status
     sub.add_parser("status", help="Show tool inventory and system status")
 
+    # samsung — Samsung Download mode operations
+    p_samsung = sub.add_parser("samsung", help="Samsung Download mode operations (Odin/Loke protocol)")
+    p_samsung.add_argument("action", choices=["pit", "backup", "erase"], help="pit=read PIT, backup=backup FRP parts, erase=erase FRP parts")
+
     args = parser.parse_args()
 
     if args.command == "detect":
@@ -413,6 +479,8 @@ def main():
         cmd_backup(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "samsung":
+        cmd_samsung(args)
     else:
         parser.print_help()
         print(f"\n  {C.GRAY}Run 'frp-freedom detect' to start.{C.R}")

@@ -78,9 +78,6 @@ class BaseExecutor(ABC):
             )
 
 
-import os
-
-
 class MTKClientExecutor(BaseExecutor):
     """Wrapper for bkerler/mtkclient"""
 
@@ -603,6 +600,79 @@ class HardwareISPExecutor(BaseExecutor):
         )
 
 
+class SamsungDownloadExecutor(BaseExecutor):
+    """Samsung Download mode (Odin/Loke protocol) executor.
+    Direct USB via pyusb — no Heimdall dependency.
+    Reads PIT, identifies FRP/KG partitions, can backup and erase."""
+
+    def _find_binary(self) -> str | None:
+        # This executor uses pyusb directly, not an external binary
+        try:
+            import usb.core  # noqa: F401
+            return "pyusb"
+        except ImportError:
+            return None
+
+    def execute(self, device_info: dict, params: dict) -> ExecutionResult:
+        if not self.binary_path:
+            return ExecutionResult(False, "", "pyusb not installed. Run: pip install pyusb", 0)
+
+        from tools.odin_client import OdinClient, detect_samsung_download, get_pit_and_frp_partitions
+
+        func = params.get("function", "get_pit")
+
+        if func == "get_pit":
+            pit, frp_parts = get_pit_and_frp_partitions()
+            if not pit:
+                return ExecutionResult(False, "", "Could not read PIT from device", 0)
+            lines = [f"PIT: {pit.entry_count} entries, CPU={pit.cpu_tag}"]
+            for e in pit.entries:
+                ro = " (RO)" if e.is_read_only else ""
+                lines.append(f"  {e.partition_name:20s} {e.size_bytes:>10} blocks={e.block_count} id={e.identifier}{ro}")
+            lines.append(f"\nFRP-related partitions: {len(frp_parts)}")
+            for p in frp_parts:
+                lines.append(f"  ⚠ {p.partition_name}: {p.size_bytes} bytes")
+            return ExecutionResult(True, "\n".join(lines), "", 0)
+
+        elif func == "backup_frp":
+            pit, frp_parts = get_pit_and_frp_partitions()
+            if not pit or not frp_parts:
+                return ExecutionResult(False, "", "No PIT or FRP partitions found", 0)
+            client = OdinClient()
+            try:
+                if not client.connect() or not client.begin_session():
+                    return ExecutionResult(False, "", "Could not connect to download mode", 0)
+                artifacts = []
+                backup_dir = Path("backups")
+                backup_dir.mkdir(exist_ok=True)
+                for part in frp_parts:
+                    data = client.read_partition(part)
+                    if data:
+                        fpath = backup_dir / f"{part.partition_name}_{int(time.time())}.bin"
+                        fpath.write_bytes(data)
+                        artifacts.append(str(fpath))
+                return ExecutionResult(True, f"Backed up {len(artifacts)} partitions", "", 0, artifacts)
+            finally:
+                client.close()
+
+        elif func == "erase_frp":
+            # WARNING: This erases FRP partitions via Odin write (zero fill)
+            pit, frp_parts = get_pit_and_frp_partitions()
+            if not pit or not frp_parts:
+                return ExecutionResult(False, "", "No PIT or FRP partitions found", 0)
+            # TODO: implement partition erase via Odin file write with zero data
+            names = [p.partition_name for p in frp_parts]
+            return ExecutionResult(
+                False, "",
+                f"Partition erase not yet implemented for Odin protocol. "
+                f"FRP partitions identified: {', '.join(names)}. "
+                f"Use Heimdall or Odin on Windows to flash zeroed partitions.",
+                0
+            )
+
+        return ExecutionResult(False, "", f"Unknown function: {func}", 0)
+
+
 # Registry
 EXECUTORS = {
     "mtkclient": MTKClientExecutor,
@@ -622,6 +692,7 @@ EXECUTORS = {
     "penumbra": PenumbraExecutor,
     "valhalla": ValhallaExecutor,
     "samfw_server": SamFwServerExecutor,
+    "samsung_download": SamsungDownloadExecutor,  # Odin/Loke via pyusb
     "easyjtag_plus": HardwareISPExecutor,  # Hardware bridge
     "medusa_pro_2": HardwareISPExecutor,   # Hardware bridge
     "sigma": None,  # Proprietary dongle — no open executor
